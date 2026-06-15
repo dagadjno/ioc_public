@@ -18,23 +18,27 @@
             color: #ffffff;
             margin-bottom: 30px;
         }
+
         .date-section {
             max-width: 1200px;
-            margin: 0 auto 40px auto;
+            margin: 0 auto 48px auto;
         }
-        .date-section h2 {
+        .date-section > h2 {
             font-size: 1.2em;
             color: #8ab4f8;
             border-bottom: 1px solid #333333;
             padding-bottom: 8px;
-            margin-bottom: 16px;
+            margin-bottom: 20px;
         }
-        .container {
+
+        .article-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
             gap: 20px;
         }
-        .card {
+
+        /* Card = one article */
+        .article-card {
             background: #1e1e1e;
             border: 1px solid #333333;
             border-radius: 8px;
@@ -42,49 +46,87 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.3);
             display: flex;
             flex-direction: column;
+            gap: 14px;
         }
-        .card h3 {
-            font-size: 1.1em;
-            margin-top: 0;
-            margin-bottom: 10px;
-            color: #ffffff;
-        }
-        .links {
+
+        /* Article header */
+        .article-header {
             display: flex;
             flex-direction: column;
             gap: 4px;
-            margin-bottom: 10px;
         }
-        .link-label {
-            font-size: 0.75em;
+        .article-title {
+            font-size: 1.05em;
+            font-weight: bold;
+            color: #ffffff;
+            margin: 0;
+        }
+        .field-label {
+            font-size: 0.7em;
             color: #888888;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
+            letter-spacing: 0.06em;
+            margin-top: 6px;
         }
-        .card a {
+        .article-header a {
             color: #8ab4f8;
             text-decoration: none;
-            font-size: 0.9em;
+            font-size: 0.85em;
             word-break: break-all;
         }
-        .card a:hover {
+        .article-header a:hover {
             text-decoration: underline;
             color: #aecbfa;
         }
         .summary {
-            font-size: 0.9em;
+            font-size: 0.88em;
             color: #cccccc;
-            margin-bottom: 15px;
             line-height: 1.4;
+            margin: 0;
         }
+
+        /* Divider between article header and sources */
+        .card-divider {
+            border: none;
+            border-top: 1px solid #2e2e2e;
+            margin: 0;
+        }
+
+        /* One block per primary source inside a card */
+        .source-section {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .source-section + .source-section {
+            border-top: 1px solid #2e2e2e;
+            padding-top: 14px;
+        }
+        .source-section--implicit {
+            border-top: none !important;
+            padding-top: 0 !important;
+        }
+        .source-section--implicit .ioc-list {
+            border-top: none;
+        }
+        .source-section a {
+            color: #8ab4f8;
+            text-decoration: none;
+            font-size: 0.85em;
+            word-break: break-all;
+        }
+        .source-section a:hover {
+            text-decoration: underline;
+            color: #aecbfa;
+        }
+
         .ioc-list {
             background: #121212;
             border: 1px solid #333333;
             border-radius: 4px;
             padding: 10px;
-            max-height: 200px;
+            max-height: 160px;
             overflow-y: auto;
-            flex-grow: 1;
         }
         .ioc-item {
             font-family: monospace;
@@ -93,27 +135,56 @@
             word-break: break-all;
             color: #ff9a9e;
         }
-        .ioc-item:last-child {
-            margin-bottom: 0;
+        .ioc-item:last-child { margin-bottom: 0; }
+
+        /* Filter bar */
+        .filter-bar {
+            max-width: 1200px;
+            margin: 0 auto 28px auto;
+            background: #1e1e1e;
+            border: 1px solid #333333;
+            border-radius: 8px;
+            padding: 14px 20px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px;
         }
-        ::-webkit-scrollbar {
-            width: 8px;
+        .filter-bar-label {
+            font-size: 0.75em;
+            color: #888888;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            white-space: nowrap;
         }
-        ::-webkit-scrollbar-track {
-            background: #121212;
+        .filter-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            color: #e0e0e0;
+            user-select: none;
         }
-        ::-webkit-scrollbar-thumb {
-            background: #444444;
-            border-radius: 4px;
+        .filter-checkbox input[type="checkbox"] {
+            accent-color: #8ab4f8;
+            width: 14px;
+            height: 14px;
+            cursor: pointer;
         }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #555555;
-        }
+
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #121212; }
+        ::-webkit-scrollbar-thumb { background: #444444; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555555; }
     </style>
 </head>
 <body>
 
     <h1>IOC Data</h1>
+    <div class="filter-bar" id="filter-bar">
+        <span class="filter-bar-label">IOC Type</span>
+    </div>
     <div id="sections-container"></div>
 
     <script>
@@ -139,38 +210,54 @@
         });
 
         function processAndRenderData(data) {
-            // Group by dateAdded → title
+            // byDate[dateAdded][articleLink] = { title, summary, sources: { sourceUrl: Map<ioc, type> } }
             const byDate = {};
+            const allTypes = new Set();
 
             data.forEach(row => {
-                const title = row['Original Article Title'];
+                const title       = row['Original Article Title'];
                 const articleLink = row['Original Article Link'];
-                const sourceLink = row['Source URL'];
-                const ioc = row['IOC'];
-                const summary = row['Summary'];
-                const dateAdded = (row['Date Added'] || '').slice(0, 10) || 'Unknown Date';
+                const sourceLink  = row['Source URL'] || articleLink;
+                const ioc         = row['IOC'];
+                const iocType     = row['IOC Type'] || 'Unknown';
+                const summary     = row['Summary'];
+                const dateAdded   = (row['Date Added'] || '').slice(0, 10) || 'Unknown Date';
 
-                if (!title) return;
+                if (!title || !articleLink) return;
 
-                if (!byDate[dateAdded]) {
-                    byDate[dateAdded] = {};
+                if (ioc) allTypes.add(iocType);
+
+                if (!byDate[dateAdded]) byDate[dateAdded] = {};
+                if (!byDate[dateAdded][articleLink]) {
+                    byDate[dateAdded][articleLink] = { title, summary, sources: {} };
                 }
 
-                if (!byDate[dateAdded][title]) {
-                    byDate[dateAdded][title] = {
-                        articleLink: articleLink,
-                        sourceLink: sourceLink,
-                        summary: summary,
-                        iocs: new Set()
-                    };
-                }
-
-                if (ioc) {
-                    byDate[dateAdded][title].iocs.add(ioc);
-                }
+                const sources = byDate[dateAdded][articleLink].sources;
+                if (!sources[sourceLink]) sources[sourceLink] = new Map();
+                if (ioc) sources[sourceLink].set(ioc, iocType);
             });
 
-            // Sort dates descending
+            // Build filter checkboxes
+            const filterBar = document.getElementById('filter-bar');
+            const activeTypes = new Set(allTypes);
+            [...allTypes].sort().forEach(type => {
+                const label = document.createElement('label');
+                label.className = 'filter-checkbox';
+
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.checked = true;
+                cb.value = type;
+                cb.addEventListener('change', () => {
+                    if (cb.checked) activeTypes.add(type); else activeTypes.delete(type);
+                    applyFilter(activeTypes);
+                });
+
+                label.appendChild(cb);
+                label.appendChild(document.createTextNode(type));
+                filterBar.appendChild(label);
+            });
+
             const sortedDates = Object.keys(byDate).sort((a, b) => {
                 if (a === 'Unknown Date') return 1;
                 if (b === 'Unknown Date') return -1;
@@ -188,70 +275,103 @@
                 section.appendChild(heading);
 
                 const grid = document.createElement('div');
-                grid.className = 'container';
+                grid.className = 'article-grid';
 
-                const articles = byDate[date];
-                for (const [title, info] of Object.entries(articles)) {
+                for (const [articleLink, articleData] of Object.entries(byDate[date])) {
                     const card = document.createElement('div');
-                    card.className = 'card';
+                    card.className = 'article-card';
 
-                    const titleEl = document.createElement('h3');
-                    titleEl.textContent = title;
-                    card.appendChild(titleEl);
+                    // Article header
+                    const header = document.createElement('div');
+                    header.className = 'article-header';
 
-                    const linksEl = document.createElement('div');
-                    linksEl.className = 'links';
+                    const titleEl = document.createElement('p');
+                    titleEl.className = 'article-title';
+                    titleEl.textContent = articleData.title;
+                    header.appendChild(titleEl);
 
-                    if (info.articleLink) {
-                        const articleLabel = document.createElement('span');
-                        articleLabel.className = 'link-label';
-                        articleLabel.textContent = 'Article';
-                        linksEl.appendChild(articleLabel);
+                    const articleLabel = document.createElement('span');
+                    articleLabel.className = 'field-label';
+                    articleLabel.textContent = 'Article';
+                    header.appendChild(articleLabel);
 
-                        const articleAnchor = document.createElement('a');
-                        articleAnchor.href = info.articleLink;
-                        articleAnchor.textContent = info.articleLink;
-                        articleAnchor.target = '_blank';
-                        articleAnchor.rel = 'noopener noreferrer';
-                        linksEl.appendChild(articleAnchor);
-                    }
+                    const articleAnchor = document.createElement('a');
+                    articleAnchor.href = articleLink;
+                    articleAnchor.textContent = articleLink;
+                    articleAnchor.target = '_blank';
+                    articleAnchor.rel = 'noopener noreferrer';
+                    header.appendChild(articleAnchor);
 
-                    // Only show Source URL if it differs from the article link
-                    if (info.sourceLink && info.sourceLink !== info.articleLink) {
-                        const sourceLabel = document.createElement('span');
-                        sourceLabel.className = 'link-label';
-                        sourceLabel.textContent = 'Primary Source';
-                        linksEl.appendChild(sourceLabel);
+                    card.appendChild(header);
 
-                        const sourceAnchor = document.createElement('a');
-                        sourceAnchor.href = info.sourceLink;
-                        sourceAnchor.textContent = info.sourceLink;
-                        sourceAnchor.target = '_blank';
-                        sourceAnchor.rel = 'noopener noreferrer';
-                        linksEl.appendChild(sourceAnchor);
-                    }
-
-                    card.appendChild(linksEl);
-
-                    if (info.summary) {
+                    if (articleData.summary) {
                         const summaryEl = document.createElement('p');
                         summaryEl.className = 'summary';
-                        summaryEl.textContent = info.summary;
+                        summaryEl.textContent = articleData.summary;
                         card.appendChild(summaryEl);
                     }
 
-                    if (info.iocs.size > 0) {
-                        const iocContainer = document.createElement('div');
-                        iocContainer.className = 'ioc-list';
+                    const allSources = Object.entries(articleData.sources);
+                    const distinctSources = allSources.filter(([url]) => url !== articleLink);
+                    const implicitSources = allSources.filter(([url]) => url === articleLink);
 
-                        info.iocs.forEach(ioc => {
-                            const iocEl = document.createElement('div');
-                            iocEl.className = 'ioc-item';
-                            iocEl.textContent = ioc;
-                            iocContainer.appendChild(iocEl);
-                        });
+                    // Article's own IOCs first (no label)
+                    for (const [sourceUrl, iocs] of implicitSources) {
+                        if (iocs.size > 0) {
+                            const iocContainer = document.createElement('div');
+                            iocContainer.className = 'ioc-list';
+                            [...iocs.entries()]
+                                .sort(([, typeA], [, typeB]) => typeA.localeCompare(typeB))
+                                .forEach(([ioc, iocType]) => {
+                                    const iocEl = document.createElement('div');
+                                    iocEl.className = 'ioc-item';
+                                    iocEl.dataset.iocType = iocType;
+                                    iocEl.textContent = ioc;
+                                    iocContainer.appendChild(iocEl);
+                                });
+                            card.appendChild(iocContainer);
+                        }
+                    }
 
-                        card.appendChild(iocContainer);
+                    // Divider + distinct primary sources below
+                    if (distinctSources.length > 0) {
+                        const hr = document.createElement('hr');
+                        hr.className = 'card-divider';
+                        card.appendChild(hr);
+
+                        for (const [sourceUrl, iocs] of distinctSources) {
+                            const sourceSection = document.createElement('div');
+                            sourceSection.className = 'source-section';
+
+                            const sourceLabel = document.createElement('span');
+                            sourceLabel.className = 'field-label';
+                            sourceLabel.textContent = 'Primary Source';
+                            sourceSection.appendChild(sourceLabel);
+
+                            const sourceAnchor = document.createElement('a');
+                            sourceAnchor.href = sourceUrl;
+                            sourceAnchor.textContent = sourceUrl;
+                            sourceAnchor.target = '_blank';
+                            sourceAnchor.rel = 'noopener noreferrer';
+                            sourceSection.appendChild(sourceAnchor);
+
+                            if (iocs.size > 0) {
+                                const iocContainer = document.createElement('div');
+                                iocContainer.className = 'ioc-list';
+                                [...iocs.entries()]
+                                    .sort(([, typeA], [, typeB]) => typeA.localeCompare(typeB))
+                                    .forEach(([ioc, iocType]) => {
+                                        const iocEl = document.createElement('div');
+                                        iocEl.className = 'ioc-item';
+                                        iocEl.dataset.iocType = iocType;
+                                        iocEl.textContent = ioc;
+                                        iocContainer.appendChild(iocEl);
+                                    });
+                                sourceSection.appendChild(iocContainer);
+                            }
+
+                            card.appendChild(sourceSection);
+                        }
                     }
 
                     grid.appendChild(card);
@@ -259,6 +379,25 @@
 
                 section.appendChild(grid);
                 sectionsContainer.appendChild(section);
+            });
+        }
+
+        function applyFilter(activeTypes) {
+            // Show/hide individual IOC items
+            document.querySelectorAll('.ioc-item').forEach(el => {
+                el.style.display = activeTypes.has(el.dataset.iocType) ? '' : 'none';
+            });
+            // Hide source-section if all its IOCs are hidden
+            document.querySelectorAll('.source-section').forEach(section => {
+                const anyVisible = [...section.querySelectorAll('.ioc-item')]
+                    .some(el => el.style.display !== 'none');
+                section.style.display = anyVisible ? '' : 'none';
+            });
+            // Hide article card if all its source-sections are hidden
+            document.querySelectorAll('.article-card').forEach(card => {
+                const anyVisible = [...card.querySelectorAll('.source-section')]
+                    .some(el => el.style.display !== 'none');
+                card.style.display = anyVisible ? '' : 'none';
             });
         }
 
