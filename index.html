@@ -139,7 +139,7 @@
         });
 
         function processAndRenderData(data) {
-            // Group by publishedDate → title
+            // Group by dateAdded → title
             const byDate = {};
 
             data.forEach(row => {
@@ -156,8 +156,8 @@
                     byDate[dateAdded] = {};
                 }
 
-                if (!byDate[publishedDate][title]) {
-                    byDate[publishedDate][title] = {
+                if (!byDate[dateAdded][title]) {
+                    byDate[dateAdded][title] = {
                         articleLink: articleLink,
                         sourceLink: sourceLink,
                         summary: summary,
@@ -166,7 +166,7 @@
                 }
 
                 if (ioc) {
-                    byDate[publishedDate][title].iocs.add(ioc);
+                    byDate[dateAdded][title].iocs.add(ioc);
                 }
             });
 
