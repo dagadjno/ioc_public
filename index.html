@@ -148,12 +148,12 @@
                 const sourceLink = row['Source URL'];
                 const ioc = row['IOC'];
                 const summary = row['Summary'];
-                const publishedDate = row['Published Date'] || 'Unknown Date';
+                const dateAdded = (row['Date Added'] || '').slice(0, 10) || 'Unknown Date';
 
                 if (!title) return;
 
-                if (!byDate[publishedDate]) {
-                    byDate[publishedDate] = {};
+                if (!byDate[dateAdded]) {
+                    byDate[dateAdded] = {};
                 }
 
                 if (!byDate[publishedDate][title]) {
@@ -184,7 +184,7 @@
                 section.className = 'date-section';
 
                 const heading = document.createElement('h2');
-                heading.textContent = date === 'Unknown Date' ? 'Unknown Date' : formatDate(date);
+                heading.textContent = date === 'Unknown Date' ? 'Unknown Date' : `Added ${formatDate(date)}`;
                 section.appendChild(heading);
 
                 const grid = document.createElement('div');
