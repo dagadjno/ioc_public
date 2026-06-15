@@ -13,12 +13,26 @@
             padding: 20px;
             margin: 0;
         }
+        h1 {
+            text-align: center;
+            color: #ffffff;
+            margin-bottom: 30px;
+        }
+        .date-section {
+            max-width: 1200px;
+            margin: 0 auto 40px auto;
+        }
+        .date-section h2 {
+            font-size: 1.2em;
+            color: #8ab4f8;
+            border-bottom: 1px solid #333333;
+            padding-bottom: 8px;
+            margin-bottom: 16px;
+        }
         .container {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
             gap: 20px;
-            max-width: 1200px;
-            margin: 0 auto;
         }
         .card {
             background: #1e1e1e;
@@ -32,18 +46,24 @@
         .card h3 {
             font-size: 1.1em;
             margin-top: 0;
-            margin-bottom: 5px;
+            margin-bottom: 10px;
             color: #ffffff;
         }
-        .date {
-            font-size: 0.85em;
-            color: #a0a0a0;
+        .links {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
             margin-bottom: 10px;
+        }
+        .link-label {
+            font-size: 0.75em;
+            color: #888888;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
         }
         .card a {
             color: #8ab4f8;
             text-decoration: none;
-            margin-bottom: 10px;
             font-size: 0.9em;
             word-break: break-all;
         }
@@ -93,7 +113,8 @@
 </head>
 <body>
 
-    <div class="container" id="card-container"></div>
+    <h1>IOC Data</h1>
+    <div id="sections-container"></div>
 
     <script>
         document.addEventListener("DOMContentLoaded", () => {
@@ -112,86 +133,138 @@
                     });
                 })
                 .catch(err => {
-                    document.getElementById('card-container').innerHTML = 
+                    document.getElementById('sections-container').innerHTML =
                         `<p style="color: #ff6b6b;">Error: ${err.message}. Ensure you are running this through a local web server.</p>`;
                 });
         });
 
         function processAndRenderData(data) {
-            const articles = {};
+            // Group by publishedDate → title
+            const byDate = {};
 
             data.forEach(row => {
                 const title = row['Original Article Title'];
-                const link = row['Original Article Link'] || row['Source URL'];
+                const articleLink = row['Original Article Link'];
+                const sourceLink = row['Source URL'];
                 const ioc = row['IOC'];
                 const summary = row['Summary'];
-                const publishedDate = row['Published Date'];
+                const publishedDate = row['Published Date'] || 'Unknown Date';
 
                 if (!title) return;
 
-                if (!articles[title]) {
-                    articles[title] = {
-                        link: link,
+                if (!byDate[publishedDate]) {
+                    byDate[publishedDate] = {};
+                }
+
+                if (!byDate[publishedDate][title]) {
+                    byDate[publishedDate][title] = {
+                        articleLink: articleLink,
+                        sourceLink: sourceLink,
                         summary: summary,
-                        publishedDate: publishedDate,
                         iocs: new Set()
                     };
                 }
-                
+
                 if (ioc) {
-                    articles[title].iocs.add(ioc);
+                    byDate[publishedDate][title].iocs.add(ioc);
                 }
             });
 
-            const container = document.getElementById('card-container');
+            // Sort dates descending
+            const sortedDates = Object.keys(byDate).sort((a, b) => {
+                if (a === 'Unknown Date') return 1;
+                if (b === 'Unknown Date') return -1;
+                return new Date(b) - new Date(a);
+            });
 
-            for (const [title, info] of Object.entries(articles)) {
-                const card = document.createElement('div');
-                card.className = 'card';
+            const sectionsContainer = document.getElementById('sections-container');
 
-                const titleEl = document.createElement('h3');
-                titleEl.textContent = title;
-                card.appendChild(titleEl);
+            sortedDates.forEach(date => {
+                const section = document.createElement('div');
+                section.className = 'date-section';
 
-                if (info.publishedDate) {
-                    const dateEl = document.createElement('div');
-                    dateEl.className = 'date';
-                    dateEl.textContent = `Published: ${info.publishedDate}`;
-                    card.appendChild(dateEl);
+                const heading = document.createElement('h2');
+                heading.textContent = date === 'Unknown Date' ? 'Unknown Date' : formatDate(date);
+                section.appendChild(heading);
+
+                const grid = document.createElement('div');
+                grid.className = 'container';
+
+                const articles = byDate[date];
+                for (const [title, info] of Object.entries(articles)) {
+                    const card = document.createElement('div');
+                    card.className = 'card';
+
+                    const titleEl = document.createElement('h3');
+                    titleEl.textContent = title;
+                    card.appendChild(titleEl);
+
+                    const linksEl = document.createElement('div');
+                    linksEl.className = 'links';
+
+                    if (info.articleLink) {
+                        const articleLabel = document.createElement('span');
+                        articleLabel.className = 'link-label';
+                        articleLabel.textContent = 'Article';
+                        linksEl.appendChild(articleLabel);
+
+                        const articleAnchor = document.createElement('a');
+                        articleAnchor.href = info.articleLink;
+                        articleAnchor.textContent = info.articleLink;
+                        articleAnchor.target = '_blank';
+                        articleAnchor.rel = 'noopener noreferrer';
+                        linksEl.appendChild(articleAnchor);
+                    }
+
+                    // Only show Source URL if it differs from the article link
+                    if (info.sourceLink && info.sourceLink !== info.articleLink) {
+                        const sourceLabel = document.createElement('span');
+                        sourceLabel.className = 'link-label';
+                        sourceLabel.textContent = 'Primary Source';
+                        linksEl.appendChild(sourceLabel);
+
+                        const sourceAnchor = document.createElement('a');
+                        sourceAnchor.href = info.sourceLink;
+                        sourceAnchor.textContent = info.sourceLink;
+                        sourceAnchor.target = '_blank';
+                        sourceAnchor.rel = 'noopener noreferrer';
+                        linksEl.appendChild(sourceAnchor);
+                    }
+
+                    card.appendChild(linksEl);
+
+                    if (info.summary) {
+                        const summaryEl = document.createElement('p');
+                        summaryEl.className = 'summary';
+                        summaryEl.textContent = info.summary;
+                        card.appendChild(summaryEl);
+                    }
+
+                    if (info.iocs.size > 0) {
+                        const iocContainer = document.createElement('div');
+                        iocContainer.className = 'ioc-list';
+
+                        info.iocs.forEach(ioc => {
+                            const iocEl = document.createElement('div');
+                            iocEl.className = 'ioc-item';
+                            iocEl.textContent = ioc;
+                            iocContainer.appendChild(iocEl);
+                        });
+
+                        card.appendChild(iocContainer);
+                    }
+
+                    grid.appendChild(card);
                 }
 
-                if (info.link) {
-                    const linkEl = document.createElement('a');
-                    linkEl.href = info.link;
-                    linkEl.textContent = info.link;
-                    linkEl.target = "_blank";
-                    linkEl.rel = "noopener noreferrer";
-                    card.appendChild(linkEl);
-                }
+                section.appendChild(grid);
+                sectionsContainer.appendChild(section);
+            });
+        }
 
-                if (info.summary) {
-                    const summaryEl = document.createElement('p');
-                    summaryEl.className = 'summary';
-                    summaryEl.textContent = info.summary;
-                    card.appendChild(summaryEl);
-                }
-
-                if (info.iocs.size > 0) {
-                    const iocContainer = document.createElement('div');
-                    iocContainer.className = 'ioc-list';
-                    
-                    info.iocs.forEach(ioc => {
-                        const iocEl = document.createElement('div');
-                        iocEl.className = 'ioc-item';
-                        iocEl.textContent = ioc;
-                        iocContainer.appendChild(iocEl);
-                    });
-                    
-                    card.appendChild(iocContainer);
-                }
-
-                container.appendChild(card);
-            }
+        function formatDate(dateStr) {
+            const d = new Date(dateStr + 'T00:00:00');
+            return d.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
         }
     </script>
 </body>
