@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IOC Data — Table Export</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #121212;
+            color: #e0e0e0;
+            padding: 20px;
+            margin: 0;
+        }
+        h1 {
+            text-align: center;
+            color: #ffffff;
+            margin-bottom: 20px;
+        }
+        .toolbar {
+            max-width: 1400px;
+            margin: 0 auto 16px auto;
+            text-align: center;
+        }
+        .toolbar a {
+            color: #8ab4f8;
+            text-decoration: none;
+            font-size: 0.9em;
+        }
+        .toolbar a:hover { text-decoration: underline; color: #aecbfa; }
+        .copy-btn {
+            background: #1e1e1e;
+            color: #8ab4f8;
+            border: 1px solid #333333;
+            border-radius: 6px;
+            padding: 8px 16px;
+            font-size: 0.9em;
+            cursor: pointer;
+            margin-left: 16px;
+        }
+        .copy-btn:hover { background: #242424; border-color: #444444; }
+        .copy-btn:active { background: #2a2a2a; }
+
+        /* Filter bar */
+        .filter-bar {
+            max-width: 1400px;
+            margin: 0 auto 16px auto;
+            background: #1e1e1e;
+            border: 1px solid #333333;
+            border-radius: 8px;
+            padding: 14px 20px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px;
+        }
+        .filter-bar-label {
+            font-size: 0.75em;
+            color: #888888;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            white-space: nowrap;
+        }
+        .filter-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            font-size: 0.9em;
+            color: #e0e0e0;
+            user-select: none;
+        }
+        .filter-checkbox input[type="checkbox"] {
+            accent-color: #8ab4f8;
+            width: 14px;
+            height: 14px;
+            cursor: pointer;
+        }
+        .filter-sep {
+            width: 1px;
+            align-self: stretch;
+            background: #333333;
+            margin: 0 4px;
+        }
+        .filter-bar select {
+            background: #121212;
+            color: #e0e0e0;
+            border: 1px solid #333333;
+            border-radius: 4px;
+            padding: 5px 8px;
+            font-size: 0.9em;
+            cursor: pointer;
+        }
+
+        .table-wrap {
+            max-width: 1400px;
+            margin: 0 auto;
+            overflow-x: auto;
+            border: 1px solid #333333;
+            border-radius: 8px;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 0.85em;
+        }
+        thead th {
+            position: sticky;
+            top: 0;
+            background: #1e1e1e;
+            color: #ffffff;
+            text-align: left;
+            padding: 10px 12px;
+            border-bottom: 2px solid #333333;
+            white-space: nowrap;
+        }
+        tbody td {
+            padding: 8px 12px;
+            border-bottom: 1px solid #2a2a2a;
+            vertical-align: top;
+        }
+        tbody tr:nth-child(even) {
+            background: #1a1a1a;
+        }
+        tbody tr:hover {
+            background: #242424;
+        }
+        td a {
+            color: #8ab4f8;
+            text-decoration: none;
+            word-break: break-all;
+        }
+        td a:hover { text-decoration: underline; color: #aecbfa; }
+        .ioc-cell {
+            font-family: monospace;
+            color: #ff9a9e;
+            word-break: break-all;
+        }
+        .nowrap { white-space: nowrap; }
+
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #121212; }
+        ::-webkit-scrollbar-thumb { background: #444444; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555555; }
+    </style>
+</head>
+<body>
+
+    <h1>IOC Data — Table Export</h1>
+    <div class="toolbar">
+        <a href="index.html">&larr; Back to card view</a>
+        <button class="copy-btn" id="copy-btn">Copy table to clipboard</button>
+    </div>
+    <div class="filter-bar" id="filter-bar">
+        <span class="filter-bar-label">IOC Type</span>
+        <span class="filter-types" id="filter-types"></span>
+        <span class="filter-sep"></span>
+        <span class="filter-bar-label">Date Added</span>
+        <select id="filter-date"><option value="">All dates</option></select>
+    </div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date Added</th>
+                    <th>Publish Date</th>
+                    <th>Main Article Title</th>
+                    <th>IOC Type</th>
+                    <th>IOC</th>
+                    <th>Article URL</th>
+                    <th>Primary Source URL</th>
+                </tr>
+            </thead>
+            <tbody id="table-body"></tbody>
+        </table>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            fetch('iocs.csv')
+                .then(response => {
+                    if (!response.ok) throw new Error("Could not load iocs.csv");
+                    return response.text();
+                })
+                .then(csvText => {
+                    Papa.parse(csvText, {
+                        header: true,
+                        skipEmptyLines: true,
+                        complete: function(results) {
+                            renderTable(results.data);
+                        }
+                    });
+                })
+                .catch(err => {
+                    document.getElementById('table-body').innerHTML =
+                        `<tr><td colspan="7" style="color:#ff6b6b;">Error: ${err.message}. Ensure you are running this through a local web server.</td></tr>`;
+                });
+        });
+
+        function renderTable(data) {
+            const tbody = document.getElementById('table-body');
+            const allTypes = new Set();
+            const allDates = new Set();
+
+            data.forEach(row => {
+                const ioc = row['IOC'];
+                if (!ioc) return;
+
+                const articleLink = row['Original Article Link'] || '';
+                const sourceLink  = row['Source URL'] || '';
+                const iocType     = row['IOC Type'] || 'Unknown';
+                const dateAdded   = (row['Date Added'] || '').slice(0, 10);
+
+                allTypes.add(iocType);
+                if (dateAdded) allDates.add(dateAdded);
+
+                const tr = document.createElement('tr');
+                tr.dataset.iocType = iocType;
+                tr.dataset.dateAdded = dateAdded;
+                tr.appendChild(textCell(row['Date Added'] || '', 'nowrap'));
+                tr.appendChild(textCell(row['Published Date'] || '', 'nowrap'));
+                tr.appendChild(textCell(row['Original Article Title'] || ''));
+                tr.appendChild(textCell(iocType, 'nowrap'));
+                tr.appendChild(textCell(ioc, 'ioc-cell'));
+                tr.appendChild(linkCell(articleLink));
+                // Only show primary source if different from the article URL
+                tr.appendChild(linkCell(sourceLink && sourceLink !== articleLink ? sourceLink : ''));
+
+                tbody.appendChild(tr);
+            });
+
+            buildFilters(allTypes, allDates);
+        }
+
+        const activeTypes = new Set();
+        let activeDate = '';
+
+        function buildFilters(allTypes, allDates) {
+            // IOC type checkboxes
+            const typesContainer = document.getElementById('filter-types');
+            [...allTypes].sort().forEach(type => {
+                activeTypes.add(type);
+                const label = document.createElement('label');
+                label.className = 'filter-checkbox';
+
+                const cb = document.createElement('input');
+                cb.type = 'checkbox';
+                cb.checked = true;
+                cb.value = type;
+                cb.addEventListener('change', () => {
+                    if (cb.checked) activeTypes.add(type); else activeTypes.delete(type);
+                    applyFilter();
+                });
+
+                label.appendChild(cb);
+                label.appendChild(document.createTextNode(type));
+                typesContainer.appendChild(label);
+            });
+
+            // Date Added dropdown (newest first)
+            const dateSelect = document.getElementById('filter-date');
+            [...allDates].sort((a, b) => new Date(b) - new Date(a)).forEach(date => {
+                const opt = document.createElement('option');
+                opt.value = date;
+                opt.textContent = date;
+                dateSelect.appendChild(opt);
+            });
+            dateSelect.addEventListener('change', () => {
+                activeDate = dateSelect.value;
+                applyFilter();
+            });
+        }
+
+        function applyFilter() {
+            document.querySelectorAll('#table-body tr').forEach(tr => {
+                const typeOk = activeTypes.has(tr.dataset.iocType);
+                const dateOk = !activeDate || tr.dataset.dateAdded === activeDate;
+                tr.style.display = (typeOk && dateOk) ? '' : 'none';
+            });
+        }
+
+        document.getElementById('copy-btn').addEventListener('click', copyTable);
+
+        function copyTable() {
+            const table = document.querySelector('table');
+            // Build tab-separated values: tabs delimit columns, newlines delimit rows
+            const rows = [...table.querySelectorAll('tbody tr')]
+                .filter(tr => tr.style.display !== 'none')
+                .map(tr =>
+                    [...tr.querySelectorAll('th, td')]
+                        .map(cell => (cell.textContent || '').replace(/[\t\r\n]+/g, ' ').trim())
+                        .join('\t')
+                );
+            const tsv = rows.join('\n');
+
+            const btn = document.getElementById('copy-btn');
+            navigator.clipboard.writeText(tsv).then(() => {
+                const original = btn.textContent;
+                btn.textContent = 'Copied!';
+                setTimeout(() => { btn.textContent = original; }, 1500);
+            }).catch(() => {
+                btn.textContent = 'Copy failed';
+                setTimeout(() => { btn.textContent = 'Copy table to clipboard'; }, 1500);
+            });
+        }
+
+        function textCell(text, className) {
+            const td = document.createElement('td');
+            if (className) td.className = className;
+            td.textContent = text;
+            return td;
+        }
+
+        function linkCell(url) {
+            const td = document.createElement('td');
+            if (url) {
+                const a = document.createElement('a');
+                a.href = url;
+                a.textContent = url;
+                a.target = '_blank';
+                a.rel = 'noopener noreferrer';
+                td.appendChild(a);
+            }
+            return td;
+        }
+    </script>
+</body>
+</html>

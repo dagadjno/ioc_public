@@ -17,8 +17,19 @@
         h1 {
             text-align: center;
             color: #ffffff;
-            margin-bottom: 30px;
+            margin-bottom: 16px;
         }
+        .toolbar {
+            max-width: 1200px;
+            margin: 0 auto 24px auto;
+            text-align: center;
+        }
+        .toolbar a {
+            color: #8ab4f8;
+            text-decoration: none;
+            font-size: 0.9em;
+        }
+        .toolbar a:hover { text-decoration: underline; color: #aecbfa; }
 
         .date-section {
             max-width: 1200px;
@@ -178,6 +189,21 @@
             height: 14px;
             cursor: pointer;
         }
+        .filter-sep {
+            width: 1px;
+            align-self: stretch;
+            background: #333333;
+            margin: 0 4px;
+        }
+        .filter-bar select {
+            background: #121212;
+            color: #e0e0e0;
+            border: 1px solid #333333;
+            border-radius: 4px;
+            padding: 5px 8px;
+            font-size: 0.9em;
+            cursor: pointer;
+        }
 
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: #121212; }
@@ -188,8 +214,13 @@
 <body>
 
     <h1>IOC Data</h1>
+    <div class="toolbar"><a href="csvexport.html">View as table &rarr;</a></div>
     <div class="filter-bar" id="filter-bar">
         <span class="filter-bar-label">IOC Type</span>
+        <span class="filter-types" id="filter-types"></span>
+        <span class="filter-sep"></span>
+        <span class="filter-bar-label">Date Added</span>
+        <select id="filter-date"><option value="">All dates</option></select>
     </div>
     <div id="sections-container"></div>
 
@@ -214,6 +245,9 @@
                         `<p style="color: #ff6b6b;">Error: ${err.message}. Ensure you are running this through a local web server.</p>`;
                 });
         });
+
+        const activeTypes = new Set();
+        let activeDate = '';
 
         function processAndRenderData(data) {
             // byDate[dateAdded][articleLink] = { title, summary, sources: { sourceUrl: Map<ioc, type> } }
@@ -244,10 +278,10 @@
                 if (ioc) sources[sourceLink].iocs.set(ioc, iocType);
             });
 
-            // Build filter checkboxes
-            const filterBar = document.getElementById('filter-bar');
-            const activeTypes = new Set(allTypes);
+            // Build IOC type checkboxes
+            const typesContainer = document.getElementById('filter-types');
             [...allTypes].sort().forEach(type => {
+                activeTypes.add(type);
                 const label = document.createElement('label');
                 label.className = 'filter-checkbox';
 
@@ -257,12 +291,12 @@
                 cb.value = type;
                 cb.addEventListener('change', () => {
                     if (cb.checked) activeTypes.add(type); else activeTypes.delete(type);
-                    applyFilter(activeTypes);
+                    applyFilter();
                 });
 
                 label.appendChild(cb);
                 label.appendChild(document.createTextNode(type));
-                filterBar.appendChild(label);
+                typesContainer.appendChild(label);
             });
 
             const sortedDates = Object.keys(byDate).sort((a, b) => {
@@ -271,11 +305,25 @@
                 return new Date(b) - new Date(a);
             });
 
+            // Build Date Added dropdown (already newest-first)
+            const dateSelect = document.getElementById('filter-date');
+            sortedDates.forEach(date => {
+                const opt = document.createElement('option');
+                opt.value = date;
+                opt.textContent = date === 'Unknown Date' ? 'Unknown Date' : date;
+                dateSelect.appendChild(opt);
+            });
+            dateSelect.addEventListener('change', () => {
+                activeDate = dateSelect.value;
+                applyFilter();
+            });
+
             const sectionsContainer = document.getElementById('sections-container');
 
             sortedDates.forEach(date => {
                 const section = document.createElement('div');
                 section.className = 'date-section';
+                section.dataset.dateAdded = date;
 
                 const heading = document.createElement('h2');
                 heading.textContent = date === 'Unknown Date' ? 'Unknown Date' : `Added ${formatDate(date)}`;
@@ -383,8 +431,8 @@
             });
         }
 
-        function applyFilter(activeTypes) {
-            // Show/hide individual IOC items
+        function applyFilter() {
+            // Show/hide individual IOC items by type
             document.querySelectorAll('.ioc-item').forEach(el => {
                 el.style.display = activeTypes.has(el.dataset.iocType) ? '' : 'none';
             });
@@ -394,11 +442,19 @@
                     .some(el => el.style.display !== 'none');
                 section.style.display = anyVisible ? '' : 'none';
             });
-            // Hide article card if all its source-sections are hidden
+            // Hide article card if it has no visible IOC items at all
             document.querySelectorAll('.article-card').forEach(card => {
-                const anyVisible = [...card.querySelectorAll('.source-section')]
+                const anyVisible = [...card.querySelectorAll('.ioc-item')]
                     .some(el => el.style.display !== 'none');
                 card.style.display = anyVisible ? '' : 'none';
+            });
+            // Hide a date-section if it doesn't match the selected date,
+            // or if all its cards are hidden by the type filter
+            document.querySelectorAll('.date-section').forEach(section => {
+                const dateOk = !activeDate || section.dataset.dateAdded === activeDate;
+                const anyVisible = [...section.querySelectorAll('.article-card')]
+                    .some(el => el.style.display !== 'none');
+                section.style.display = (dateOk && anyVisible) ? '' : 'none';
             });
         }
 
