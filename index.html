@@ -78,6 +78,11 @@
             text-decoration: underline;
             color: #aecbfa;
         }
+        .pub-date {
+            font-size: 0.78em;
+            color: #a0a0a0;
+            margin-top: 4px;
+        }
         .summary {
             font-size: 0.88em;
             color: #cccccc;
@@ -218,10 +223,11 @@
                 const title       = row['Original Article Title'];
                 const articleLink = row['Original Article Link'];
                 const sourceLink  = row['Source URL'] || articleLink;
-                const ioc         = row['IOC'];
-                const iocType     = row['IOC Type'] || 'Unknown';
-                const summary     = row['Summary'];
-                const dateAdded   = (row['Date Added'] || '').slice(0, 10) || 'Unknown Date';
+                const ioc           = row['IOC'];
+                const iocType       = row['IOC Type'] || 'Unknown';
+                const summary       = row['Summary'];
+                const publishedDate = row['Published Date'] || '';
+                const dateAdded     = (row['Date Added'] || '').slice(0, 10) || 'Unknown Date';
 
                 if (!title || !articleLink) return;
 
@@ -233,8 +239,8 @@
                 }
 
                 const sources = byDate[dateAdded][articleLink].sources;
-                if (!sources[sourceLink]) sources[sourceLink] = new Map();
-                if (ioc) sources[sourceLink].set(ioc, iocType);
+                if (!sources[sourceLink]) sources[sourceLink] = { iocs: new Map(), publishedDate };
+                if (ioc) sources[sourceLink].iocs.set(ioc, iocType);
             });
 
             // Build filter checkboxes
@@ -302,6 +308,19 @@
                     articleAnchor.rel = 'noopener noreferrer';
                     header.appendChild(articleAnchor);
 
+                    const allSources = Object.entries(articleData.sources);
+                    const distinctSources = allSources.filter(([url]) => url !== articleLink);
+                    const implicitSources = allSources.filter(([url]) => url === articleLink);
+
+                    // Article published date (from the row where the source is the article itself)
+                    const articleDate = implicitSources.length > 0 ? implicitSources[0][1].publishedDate : '';
+                    if (articleDate) {
+                        const dateEl = document.createElement('span');
+                        dateEl.className = 'pub-date';
+                        dateEl.textContent = `Published ${articleDate}`;
+                        header.appendChild(dateEl);
+                    }
+
                     card.appendChild(header);
 
                     if (articleData.summary) {
@@ -311,25 +330,10 @@
                         card.appendChild(summaryEl);
                     }
 
-                    const allSources = Object.entries(articleData.sources);
-                    const distinctSources = allSources.filter(([url]) => url !== articleLink);
-                    const implicitSources = allSources.filter(([url]) => url === articleLink);
-
                     // Article's own IOCs first (no label)
-                    for (const [sourceUrl, iocs] of implicitSources) {
-                        if (iocs.size > 0) {
-                            const iocContainer = document.createElement('div');
-                            iocContainer.className = 'ioc-list';
-                            [...iocs.entries()]
-                                .sort(([, typeA], [, typeB]) => typeA.localeCompare(typeB))
-                                .forEach(([ioc, iocType]) => {
-                                    const iocEl = document.createElement('div');
-                                    iocEl.className = 'ioc-item';
-                                    iocEl.dataset.iocType = iocType;
-                                    iocEl.textContent = ioc;
-                                    iocContainer.appendChild(iocEl);
-                                });
-                            card.appendChild(iocContainer);
+                    for (const [sourceUrl, sourceData] of implicitSources) {
+                        if (sourceData.iocs.size > 0) {
+                            card.appendChild(buildIocList(sourceData.iocs));
                         }
                     }
 
@@ -339,7 +343,7 @@
                         hr.className = 'card-divider';
                         card.appendChild(hr);
 
-                        for (const [sourceUrl, iocs] of distinctSources) {
+                        for (const [sourceUrl, sourceData] of distinctSources) {
                             const sourceSection = document.createElement('div');
                             sourceSection.className = 'source-section';
 
@@ -355,19 +359,15 @@
                             sourceAnchor.rel = 'noopener noreferrer';
                             sourceSection.appendChild(sourceAnchor);
 
-                            if (iocs.size > 0) {
-                                const iocContainer = document.createElement('div');
-                                iocContainer.className = 'ioc-list';
-                                [...iocs.entries()]
-                                    .sort(([, typeA], [, typeB]) => typeA.localeCompare(typeB))
-                                    .forEach(([ioc, iocType]) => {
-                                        const iocEl = document.createElement('div');
-                                        iocEl.className = 'ioc-item';
-                                        iocEl.dataset.iocType = iocType;
-                                        iocEl.textContent = ioc;
-                                        iocContainer.appendChild(iocEl);
-                                    });
-                                sourceSection.appendChild(iocContainer);
+                            if (sourceData.publishedDate) {
+                                const dateEl = document.createElement('span');
+                                dateEl.className = 'pub-date';
+                                dateEl.textContent = `Published ${sourceData.publishedDate}`;
+                                sourceSection.appendChild(dateEl);
+                            }
+
+                            if (sourceData.iocs.size > 0) {
+                                sourceSection.appendChild(buildIocList(sourceData.iocs));
                             }
 
                             card.appendChild(sourceSection);
@@ -399,6 +399,21 @@
                     .some(el => el.style.display !== 'none');
                 card.style.display = anyVisible ? '' : 'none';
             });
+        }
+
+        function buildIocList(iocs) {
+            const iocContainer = document.createElement('div');
+            iocContainer.className = 'ioc-list';
+            [...iocs.entries()]
+                .sort(([, typeA], [, typeB]) => typeA.localeCompare(typeB))
+                .forEach(([ioc, iocType]) => {
+                    const iocEl = document.createElement('div');
+                    iocEl.className = 'ioc-item';
+                    iocEl.dataset.iocType = iocType;
+                    iocEl.textContent = ioc;
+                    iocContainer.appendChild(iocEl);
+                });
+            return iocContainer;
         }
 
         function formatDate(dateStr) {
