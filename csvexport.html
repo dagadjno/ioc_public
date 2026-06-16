@@ -153,11 +153,18 @@
         <button class="copy-btn" id="copy-btn">Copy table to clipboard</button>
     </div>
     <div class="filter-bar" id="filter-bar">
+        <span class="filter-bar-label">Date Added</span>
+        <select id="filter-date"><option value="">All dates</option></select>
+        <span class="filter-sep"></span>
         <span class="filter-bar-label">IOC Type</span>
         <span class="filter-types" id="filter-types"></span>
         <span class="filter-sep"></span>
-        <span class="filter-bar-label">Date Added</span>
-        <select id="filter-date"><option value="">All dates</option></select>
+        <span class="filter-bar-label">Resolves</span>
+        <span class="filter-resolves" id="filter-resolves">
+            <label class="filter-checkbox"><input type="checkbox" value="yes" checked>Yes</label>
+            <label class="filter-checkbox"><input type="checkbox" value="no" checked>No</label>
+            <label class="filter-checkbox"><input type="checkbox" value="na" checked>N/A</label>
+        </span>
     </div>
     <div class="table-wrap">
         <table>
@@ -211,6 +218,7 @@
                 const sourceLink  = row['Source URL'] || '';
                 const iocType     = row['IOC Type'] || 'Unknown';
                 const dateAdded   = (row['Date Added'] || '').slice(0, 10);
+                const resolves    = (row['Resolves'] || '').toLowerCase() || 'na';
 
                 allTypes.add(iocType);
                 if (dateAdded) allDates.add(dateAdded);
@@ -218,6 +226,7 @@
                 const tr = document.createElement('tr');
                 tr.dataset.iocType = iocType;
                 tr.dataset.dateAdded = dateAdded;
+                tr.dataset.resolves = resolves;
                 tr.appendChild(textCell(row['Date Added'] || '', 'nowrap'));
                 tr.appendChild(textCell(row['Published Date'] || '', 'nowrap'));
                 tr.appendChild(textCell(row['Original Article Title'] || ''));
@@ -235,6 +244,7 @@
 
         const activeTypes = new Set();
         let activeDate = '';
+        const activeResolves = new Set(['yes', 'no', 'na']);
 
         function buildFilters(allTypes, allDates) {
             // IOC type checkboxes
@@ -270,13 +280,21 @@
                 activeDate = dateSelect.value;
                 applyFilter();
             });
+
+            document.querySelectorAll('#filter-resolves input[type="checkbox"]').forEach(cb => {
+                cb.addEventListener('change', () => {
+                    if (cb.checked) activeResolves.add(cb.value); else activeResolves.delete(cb.value);
+                    applyFilter();
+                });
+            });
         }
 
         function applyFilter() {
             document.querySelectorAll('#table-body tr').forEach(tr => {
                 const typeOk = activeTypes.has(tr.dataset.iocType);
                 const dateOk = !activeDate || tr.dataset.dateAdded === activeDate;
-                tr.style.display = (typeOk && dateOk) ? '' : 'none';
+                const resolvesOk = activeResolves.has(tr.dataset.resolves);
+                tr.style.display = (typeOk && dateOk && resolvesOk) ? '' : 'none';
             });
         }
 

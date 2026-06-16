@@ -216,11 +216,18 @@
     <h1>IOC Data</h1>
     <div class="toolbar"><a href="csvexport.html">View as table &rarr;</a></div>
     <div class="filter-bar" id="filter-bar">
+        <span class="filter-bar-label">Date Added</span>
+        <select id="filter-date"><option value="">All dates</option></select>
+        <span class="filter-sep"></span>
         <span class="filter-bar-label">IOC Type</span>
         <span class="filter-types" id="filter-types"></span>
         <span class="filter-sep"></span>
-        <span class="filter-bar-label">Date Added</span>
-        <select id="filter-date"><option value="">All dates</option></select>
+        <span class="filter-bar-label">Resolves</span>
+        <span class="filter-resolves" id="filter-resolves">
+            <label class="filter-checkbox"><input type="checkbox" value="yes" checked>Yes</label>
+            <label class="filter-checkbox"><input type="checkbox" value="no" checked>No</label>
+            <label class="filter-checkbox"><input type="checkbox" value="na" checked>N/A</label>
+        </span>
     </div>
     <div id="sections-container"></div>
 
@@ -248,6 +255,7 @@
 
         const activeTypes = new Set();
         let activeDate = '';
+        const activeResolves = new Set(['yes', 'no', 'na']);
 
         function processAndRenderData(data) {
             // byDate[dateAdded][articleLink] = { title, summary, sources: { sourceUrl: Map<ioc, type> } }
@@ -260,6 +268,7 @@
                 const sourceLink  = row['Source URL'] || articleLink;
                 const ioc           = row['IOC'];
                 const iocType       = row['IOC Type'] || 'Unknown';
+                const resolves      = (row['Resolves'] || '').toLowerCase() || 'na';
                 const summary       = row['Summary'];
                 const publishedDate = row['Published Date'] || '';
                 const dateAdded     = (row['Date Added'] || '').slice(0, 10) || 'Unknown Date';
@@ -275,7 +284,7 @@
 
                 const sources = byDate[dateAdded][articleLink].sources;
                 if (!sources[sourceLink]) sources[sourceLink] = { iocs: new Map(), publishedDate };
-                if (ioc) sources[sourceLink].iocs.set(ioc, iocType);
+                if (ioc) sources[sourceLink].iocs.set(ioc, { type: iocType, resolves });
             });
 
             // Build IOC type checkboxes
@@ -316,6 +325,13 @@
             dateSelect.addEventListener('change', () => {
                 activeDate = dateSelect.value;
                 applyFilter();
+            });
+
+            document.querySelectorAll('#filter-resolves input[type="checkbox"]').forEach(cb => {
+                cb.addEventListener('change', () => {
+                    if (cb.checked) activeResolves.add(cb.value); else activeResolves.delete(cb.value);
+                    applyFilter();
+                });
             });
 
             const sectionsContainer = document.getElementById('sections-container');
@@ -432,9 +448,11 @@
         }
 
         function applyFilter() {
-            // Show/hide individual IOC items by type
+            // Show/hide individual IOC items by type and resolves status
             document.querySelectorAll('.ioc-item').forEach(el => {
-                el.style.display = activeTypes.has(el.dataset.iocType) ? '' : 'none';
+                const typeOk = activeTypes.has(el.dataset.iocType);
+                const resolvesOk = activeResolves.has(el.dataset.resolves);
+                el.style.display = (typeOk && resolvesOk) ? '' : 'none';
             });
             // Hide source-section if all its IOCs are hidden
             document.querySelectorAll('.source-section').forEach(section => {
@@ -462,11 +480,12 @@
             const iocContainer = document.createElement('div');
             iocContainer.className = 'ioc-list';
             [...iocs.entries()]
-                .sort(([, typeA], [, typeB]) => typeA.localeCompare(typeB))
-                .forEach(([ioc, iocType]) => {
+                .sort(([, a], [, b]) => a.type.localeCompare(b.type))
+                .forEach(([ioc, info]) => {
                     const iocEl = document.createElement('div');
                     iocEl.className = 'ioc-item';
-                    iocEl.dataset.iocType = iocType;
+                    iocEl.dataset.iocType = info.type;
+                    iocEl.dataset.resolves = info.resolves;
                     iocEl.textContent = ioc;
                     iocContainer.appendChild(iocEl);
                 });
