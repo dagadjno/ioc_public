@@ -232,8 +232,9 @@
                 const iocType     = row['IOC Type'] || 'Unknown';
                 const dateAdded   = (row['Date Added'] || '').slice(0, 10);
                 const resolves    = (row['Resolves'] || '').toLowerCase() || 'na';
-                const doubleCheckRaw = row['Double Check'] || '';
-                const doubleCheck = doubleCheckRaw === '1' ? 'yes' : doubleCheckRaw === '0' ? 'no' : 'na';
+                // Values may arrive as "1"/"0" or "1.0"/"0.0" — normalize numerically
+                const doubleCheckNum = parseFloat(row['Double Check']);
+                const doubleCheck = doubleCheckNum === 1 ? 'yes' : doubleCheckNum === 0 ? 'no' : 'na';
 
                 allTypes.add(iocType);
                 if (dateAdded) allDates.add(dateAdded);
@@ -251,7 +252,7 @@
                 tr.appendChild(linkCell(articleLink));
                 // Only show primary source if different from the article URL
                 tr.appendChild(linkCell(sourceLink && sourceLink !== articleLink ? sourceLink : ''));
-                const doubleCheckDisplay = doubleCheckRaw === '1' ? '✅' : doubleCheckRaw === '0' ? '❌' : '';
+                const doubleCheckDisplay = doubleCheck === 'yes' ? '✅' : doubleCheck === 'no' ? '❌' : '';
                 tr.appendChild(textCell(doubleCheckDisplay, 'nowrap extra-col extra-col-first'));
                 tr.appendChild(textCell(row['Check Reason'] || '', 'extra-col'));
 
